@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using Assimp;
 
 namespace Fbx2Pr3
@@ -9,11 +12,15 @@ namespace Fbx2Pr3
     {
         static int Main(string[] args)
         {
+            if (args.Length < 2)
+                return -1;
+
             var importer = new AssimpContext();
             var scene = importer.ImportFile(args[0]);
+            var outputFile = args[1];
 
             if (scene == null || !scene.HasMeshes)
-                return -1;
+                return -2;
 
             var armature = scene.RootNode.FindNode("Armature");
             var meshes = scene.RootNode;
@@ -21,7 +28,102 @@ namespace Fbx2Pr3
 
             var bones = CreateBones(meshes, armature, null);
 
+            WriteOutputFile(outputFile, scene, bones);
+
             return 0;
+        }
+
+        private static void WriteOutputFile(string outputFile, Scene scene, List<Pr3Bone> bones)
+        {
+            var s = new StreamWriter(outputFile);
+            var gz = new GZipStream(s.BaseStream, CompressionLevel.Optimal);
+            using (var f = new BinaryWriter(gz))
+            {
+                const string magic = "PR3";
+                const int version = 1;
+
+                const byte flagHasParent = 0b00000001;
+                const byte flagHasMesh = 0b00000010;
+
+                var ident = magic.ToCharArray();
+
+                f.Write(ident);
+                f.Write(version);
+                
+                f.Write(scene.Meshes.Count);
+                f.Write(bones.Count);
+
+                foreach (var mesh in scene.Meshes)
+                {
+                    f.Write(mesh.Vertices.Count);
+                    f.Write(mesh.Normals.Count);
+                    f.Write(mesh.Faces.Count);
+
+                    foreach (var vertex in mesh.Vertices)
+                    {
+                        f.Write(vertex.X);
+                        f.Write(vertex.Y);
+                        f.Write(vertex.Z);
+                    }
+
+                    foreach (var vertex in mesh.Normals)
+                    {
+                        f.Write(vertex.X);
+                        f.Write(vertex.Y);
+                        f.Write(vertex.Z);
+                    }
+
+                    foreach (var face in mesh.Faces)
+                    {
+                        f.Write(face.Indices.Count);
+                        foreach (var i in face.Indices) f.Write(i);
+                    }
+                }
+
+                foreach (var bone in bones)
+                {
+                    WriteNtString(f, bone.Name);
+
+                    var flags = (byte)0;
+
+                    if (bone.Parent != null)
+                        flags |= flagHasParent;
+                    if (bone.AssociatedMesh.HasValue)
+                        flags |= flagHasMesh;
+
+                    f.Write(flags);
+
+                    if (bone.Parent != null)
+                        WriteNtString(f, bone.Parent);
+
+                    if (bone.AssociatedMesh.HasValue)
+                        f.Write(bone.AssociatedMesh.Value);
+
+                    f.Write(bone.Transformation.A1);
+                    f.Write(bone.Transformation.A2);
+                    f.Write(bone.Transformation.A3);
+                    f.Write(bone.Transformation.A4);
+                    f.Write(bone.Transformation.B1);
+                    f.Write(bone.Transformation.B2);
+                    f.Write(bone.Transformation.B3);
+                    f.Write(bone.Transformation.B4);
+                    f.Write(bone.Transformation.C1);
+                    f.Write(bone.Transformation.C2);
+                    f.Write(bone.Transformation.C3);
+                    f.Write(bone.Transformation.C4);
+                    f.Write(bone.Transformation.D1);
+                    f.Write(bone.Transformation.D2);
+                    f.Write(bone.Transformation.D3);
+                    f.Write(bone.Transformation.D4);
+                }
+            }
+        }
+
+        private static void WriteNtString(BinaryWriter f, string s)
+        {
+            var buffer = Encoding.UTF8.GetBytes(s);
+            f.Write(buffer);
+            f.Write((byte)0);
         }
 
         private static List<Pr3Bone> CreateBones(Node meshes, Node armature, Node parent)
@@ -30,31 +132,9 @@ namespace Fbx2Pr3
             foreach (var child in armature.Children) list.AddRange(CreateBones(meshes, child, armature));
 
             var assocMesh = meshes.FindNode(armature.Name)?.MeshIndices[0];
-            list.Add(new Pr3Bone(armature.Name, new Vector3D(0, 0, 0), assocMesh, parent?.Name));
+            list.Add(new Pr3Bone(armature.Name, armature.Transform, assocMesh, parent?.Name));
 
             return list;
-        }
-    }
-
-    internal struct Pr3Bone
-    {
-        public string Name;
-        public Vector3D RotationPoint;
-        public int? AssociatedMesh;
-        public string Parent;
-
-        public Pr3Bone(string name, Vector3D rotationPoint, int? associatedMesh, string parent)
-        {
-            Name = name;
-            RotationPoint = rotationPoint;
-            AssociatedMesh = associatedMesh;
-            Parent = parent;
-        }
-
-        /// <inheritdoc />
-        public override string ToString()
-        {
-            return $"Pr3Bone[Name={Name}, Parent={Parent}, RotationPoint={RotationPoint}, AssociatedMesh={AssociatedMesh}]";
         }
     }
 }
