@@ -57,6 +57,7 @@ namespace Fbx2Pr3
                 {
                     f.Write(mesh.Vertices.Count);
                     f.Write(mesh.Normals.Count);
+                    f.Write(mesh.TextureCoordinateChannels[0].Count);
                     f.Write(mesh.Faces.Count);
 
                     foreach (var vertex in mesh.Vertices)
@@ -64,6 +65,12 @@ namespace Fbx2Pr3
                         f.Write(vertex.X);
                         f.Write(vertex.Y);
                         f.Write(vertex.Z);
+                    }
+
+                    foreach (var vertex in mesh.TextureCoordinateChannels[0])
+                    {
+                        f.Write(vertex.X);
+                        f.Write(vertex.Y);
                     }
 
                     foreach (var vertex in mesh.Normals)
