@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Assimp;
 
@@ -14,34 +15,46 @@ namespace Fbx2Pr3
             if (scene == null || !scene.HasMeshes)
                 return -1;
 
-            var objects = scene.RootNode;
+            var armature = scene.RootNode.FindNode("Armature");
+            var meshes = scene.RootNode;
+            meshes.Children.Remove(armature);
 
-            var armature = GetObjectByName(objects, "Armature");
-
-            var meshParts = objects.Children.Where(node => node.Name != "Armature");
-
-            foreach (var meshPart in meshParts)
-            {
-                var relatedBone = GetObjectByName(armature, meshPart.Name);
-                Console.WriteLine($"Mesh {meshPart.Name} <-> Bone {relatedBone?.Name}");
-            }
+            var bones = CreateBones(meshes, armature, null);
 
             return 0;
         }
 
-        private static Node GetObjectByName(Node objects, string name)
+        private static List<Pr3Bone> CreateBones(Node meshes, Node armature, Node parent)
         {
-            foreach (var o in objects.Children)
-            {
-                var childrenResult = GetObjectByName(o, name);
-                if (childrenResult != null)
-                    return childrenResult;
+            var list = new List<Pr3Bone>();
+            foreach (var child in armature.Children) list.AddRange(CreateBones(meshes, child, armature));
 
-                if (o.Name == name)
-                    return o;
-            }
+            var assocMesh = meshes.FindNode(armature.Name)?.MeshIndices[0];
+            list.Add(new Pr3Bone(armature.Name, new Vector3D(0, 0, 0), assocMesh, parent?.Name));
 
-            return null;
+            return list;
+        }
+    }
+
+    internal struct Pr3Bone
+    {
+        public string Name;
+        public Vector3D RotationPoint;
+        public int? AssociatedMesh;
+        public string Parent;
+
+        public Pr3Bone(string name, Vector3D rotationPoint, int? associatedMesh, string parent)
+        {
+            Name = name;
+            RotationPoint = rotationPoint;
+            AssociatedMesh = associatedMesh;
+            Parent = parent;
+        }
+
+        /// <inheritdoc />
+        public override string ToString()
+        {
+            return $"Pr3Bone[Name={Name}, Parent={Parent}, RotationPoint={RotationPoint}, AssociatedMesh={AssociatedMesh}]";
         }
     }
 }
