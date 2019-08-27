@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using Assimp;
+using Brotli;
 
 namespace Fbx2Pr3
 {
@@ -36,8 +37,8 @@ namespace Fbx2Pr3
         private static void WriteOutputFile(string outputFile, Scene scene, List<Pr3Bone> bones)
         {
             var s = new StreamWriter(outputFile);
-            var gz = new GZipStream(s.BaseStream, CompressionLevel.Optimal);
-            using (var f = new BinaryWriter(gz))
+            var bs = new BrotliStream(s.BaseStream, CompressionMode.Compress);
+            using (var f = new BinaryWriter(bs))
             {
                 const string magic = "PR3";
                 const int version = 1;
