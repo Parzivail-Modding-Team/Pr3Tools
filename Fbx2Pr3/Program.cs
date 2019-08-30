@@ -4,8 +4,9 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
-using Assimp;
 using Brotli;
+using Fbx;
+using Newtonsoft.Json;
 
 namespace Fbx2Pr3
 {
@@ -16,133 +17,54 @@ namespace Fbx2Pr3
             if (args.Length < 2)
                 return -1;
 
-            var importer = new AssimpContext();
-            var scene = importer.ImportFile(args[0]);
+            var scene = FbxIO.ReadBinary(args[0]);
             var outputFile = args[1];
 
-            if (scene == null || !scene.HasMeshes)
+            if (scene == null || scene.Nodes.Count == 0)
                 return -2;
 
-            var armature = scene.RootNode.FindNode("Armature");
-            var meshes = scene.RootNode;
-            meshes.Children.Remove(armature);
+//            using (var sw = new StreamWriter("fbx.txt"))
+//                sw.Write(JsonConvert.SerializeObject(scene, Formatting.Indented));
 
-            var bones = CreateBones(meshes, armature, null);
+            var model = Pr3Model.FromFbx(scene);
 
-            WriteOutputFile(outputFile, scene, bones);
+            WriteOutputFile(outputFile, model);
 
             return 0;
         }
 
-        private static void WriteOutputFile(string outputFile, Scene scene, List<Pr3Bone> bones)
+        private static void WriteOutputFile(string outputFile, Pr3Model model)
         {
             var s = new StreamWriter(outputFile);
-            var bs = new BrotliStream(s.BaseStream, CompressionMode.Compress);
-            using (var f = new BinaryWriter(bs))
+//            var bs = new BrotliStream(s.BaseStream, CompressionMode.Compress);
+            using (var f = new BinaryWriter(s.BaseStream))
             {
                 const string magic = "PR3";
                 const int version = 1;
 
-                const byte flagHasParent = 0b00000001;
-                const byte flagHasMesh = 0b00000010;
-
                 var ident = magic.ToCharArray();
 
-                f.Write(ident);
-                f.Write(version);
-                
-                f.Write(scene.Meshes.Count);
-                f.Write(bones.Count);
+//                f.Write(ident);
+//                f.Write(version);
 
-                foreach (var mesh in scene.Meshes)
+                foreach (var pr3Object in model.Objects)
                 {
-                    f.Write(mesh.Vertices.Count);
-                    f.Write(mesh.Normals.Count);
-                    f.Write(mesh.TextureCoordinateChannels[0].Count);
-                    f.Write(mesh.Faces.Count);
-
-                    foreach (var vertex in mesh.Vertices)
-                    {
-                        f.Write(vertex.X);
-                        f.Write(vertex.Y);
-                        f.Write(vertex.Z);
-                    }
-
-                    foreach (var vertex in mesh.TextureCoordinateChannels[0])
-                    {
-                        f.Write(vertex.X);
-                        f.Write(vertex.Y);
-                    }
-
-                    foreach (var vertex in mesh.Normals)
-                    {
-                        f.Write(vertex.X);
-                        f.Write(vertex.Y);
-                        f.Write(vertex.Z);
-                    }
-
-                    foreach (var face in mesh.Faces)
-                    {
-                        f.Write(face.Indices.Count);
-                        foreach (var i in face.Indices) f.Write(i);
-                    }
-                }
-
-                foreach (var bone in bones)
-                {
-                    WriteNtString(f, bone.Name);
-
-                    var flags = (byte)0;
-
-                    if (bone.Parent != null)
-                        flags |= flagHasParent;
-                    if (bone.AssociatedMesh.HasValue)
-                        flags |= flagHasMesh;
-
-                    f.Write(flags);
-
-                    if (bone.Parent != null)
-                        WriteNtString(f, bone.Parent);
-
-                    if (bone.AssociatedMesh.HasValue)
-                        f.Write(bone.AssociatedMesh.Value);
-
-                    f.Write(bone.Transformation.A1);
-                    f.Write(bone.Transformation.A2);
-                    f.Write(bone.Transformation.A3);
-                    f.Write(bone.Transformation.A4);
-                    f.Write(bone.Transformation.B1);
-                    f.Write(bone.Transformation.B2);
-                    f.Write(bone.Transformation.B3);
-                    f.Write(bone.Transformation.B4);
-                    f.Write(bone.Transformation.C1);
-                    f.Write(bone.Transformation.C2);
-                    f.Write(bone.Transformation.C3);
-                    f.Write(bone.Transformation.C4);
-                    f.Write(bone.Transformation.D1);
-                    f.Write(bone.Transformation.D2);
-                    f.Write(bone.Transformation.D3);
-                    f.Write(bone.Transformation.D4);
+                    WriteLengthCodedVectors(f, pr3Object.Vertices);
+                    WriteLengthCodedVectors(f, pr3Object.Normals);
+                    WriteLengthCodedVectors(f, pr3Object.Uvs);
                 }
             }
         }
 
-        private static void WriteNtString(BinaryWriter f, string s)
+        private static void WriteLengthCodedVectors(BinaryWriter f, List<Vector3> v)
         {
-            var buffer = Encoding.UTF8.GetBytes(s);
-            f.Write(buffer);
-            f.Write((byte)0);
-        }
-
-        private static List<Pr3Bone> CreateBones(Node meshes, Node armature, Node parent)
-        {
-            var list = new List<Pr3Bone>();
-            foreach (var child in armature.Children) list.AddRange(CreateBones(meshes, child, armature));
-
-            var assocMesh = meshes.FindNode(armature.Name)?.MeshIndices[0];
-            list.Add(new Pr3Bone(armature.Name, armature.Transform, assocMesh, parent?.Name));
-
-            return list;
+//            f.Write(v.Count);
+            foreach (var vector3 in v)
+            {
+                f.Write(vector3.X);
+                f.Write(vector3.Y);
+                f.Write(vector3.Z);
+            }
         }
     }
 }
