@@ -5,8 +5,6 @@ VisualStudioVersion = 16.0.28803.202
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fbx2Pr3", "Fbx2Pr3\Fbx2Pr3.csproj", "{90746881-9DC5-4AF6-B6D6-807F8A8E202D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fbx", "Fbx\Fbx.csproj", "{07A221AC-5238-4C77-96DE-E792C49D23E1}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -17,10 +15,6 @@ Global
 		{90746881-9DC5-4AF6-B6D6-807F8A8E202D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{90746881-9DC5-4AF6-B6D6-807F8A8E202D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{90746881-9DC5-4AF6-B6D6-807F8A8E202D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{07A221AC-5238-4C77-96DE-E792C49D23E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{07A221AC-5238-4C77-96DE-E792C49D23E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{07A221AC-5238-4C77-96DE-E792C49D23E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{07A221AC-5238-4C77-96DE-E792C49D23E1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

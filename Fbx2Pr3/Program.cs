@@ -4,8 +4,8 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Xml.Linq;
 using Brotli;
-using Fbx;
 using Newtonsoft.Json;
 
 namespace Fbx2Pr3
@@ -17,16 +17,15 @@ namespace Fbx2Pr3
             if (args.Length < 2)
                 return -1;
 
-            var scene = FbxIO.ReadBinary(args[0]);
+            var collada = XElement.Parse(File.ReadAllText(args[0]));
+
+            var scene = new GeometryLoader(collada).Load();
             var outputFile = args[1];
 
-            if (scene == null || scene.Nodes.Count == 0)
+            if (scene == null)
                 return -2;
 
-//            using (var sw = new StreamWriter("fbx.txt"))
-//                sw.Write(JsonConvert.SerializeObject(scene, Formatting.Indented));
-
-            var model = Pr3Model.FromFbx(scene);
+            var model = Pr3Model.FromCollada(scene);
 
             WriteOutputFile(outputFile, model);
 
@@ -36,19 +35,24 @@ namespace Fbx2Pr3
         private static void WriteOutputFile(string outputFile, Pr3Model model)
         {
             var s = new StreamWriter(outputFile);
-//            var bs = new BrotliStream(s.BaseStream, CompressionMode.Compress);
-            using (var f = new BinaryWriter(s.BaseStream))
+            var bs = new BrotliStream(s.BaseStream, CompressionMode.Compress);
+            using (var f = new BinaryWriter(bs))
             {
                 const string magic = "PR3";
                 const int version = 1;
 
                 var ident = magic.ToCharArray();
 
-//                f.Write(ident);
-//                f.Write(version);
+                f.Write(ident);
+                f.Write(version);
+
+                f.Write(model.Objects.Count);
 
                 foreach (var pr3Object in model.Objects)
                 {
+                    f.WriteNtString(pr3Object.Name);
+                    f.WriteNtString(pr3Object.MaterialName);
+                    WriteMatrix4(f, pr3Object.TransformationMatrix);
                     WriteLengthCodedVectors(f, pr3Object.Vertices);
                     WriteLengthCodedVectors(f, pr3Object.Normals);
                     WriteLengthCodedVectors(f, pr3Object.Uvs);
@@ -56,9 +60,14 @@ namespace Fbx2Pr3
             }
         }
 
+        private static void WriteMatrix4(BinaryWriter f, List<float> matrix)
+        {
+            foreach (var value in matrix) f.Write(value);
+        }
+
         private static void WriteLengthCodedVectors(BinaryWriter f, List<Vector3> v)
         {
-//            f.Write(v.Count);
+            f.Write(v.Count);
             foreach (var vector3 in v)
             {
                 f.Write(vector3.X);

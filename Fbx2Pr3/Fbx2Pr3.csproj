@@ -43,9 +43,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Extensions.cs" />
+    <Compile Include="Geometry.cs" />
+    <Compile Include="GeometryLoader.cs" />
+    <Compile Include="NodeData.cs" />
+    <Compile Include="Pr3FacePointer.cs" />
     <Compile Include="Pr3Model.cs" />
+    <Compile Include="Pr3Object.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Vector2.cs" />
+    <Compile Include="Vector3.cs" />
+    <Compile Include="Vertex.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
@@ -57,12 +66,6 @@
     <PackageReference Include="Newtonsoft.Json">
       <Version>12.0.2</Version>
     </PackageReference>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Fbx\Fbx.csproj">
-      <Project>{07a221ac-5238-4c77-96de-e792c49d23e1}</Project>
-      <Name>Fbx</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
