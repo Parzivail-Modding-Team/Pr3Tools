@@ -14,16 +14,9 @@ namespace Fbx2Pr3
 
         private readonly List<KeyValuePair<string, XElement>> _meshes;
         private readonly List<NodeData> _sceneData;
-        private readonly List<Vertex> _vertices;
-        private readonly List<int> _polyList;
-
-        private List<Vector3> _normals;
-        private List<Vector3> _textures;
 
         public GeometryLoader(XElement file)
         {
-            _vertices = new List<Vertex>();
-            _polyList = new List<int>();
 
             _meshes = AssembleMeshes(file);
             _sceneData = AssembleScene(file);
@@ -78,42 +71,41 @@ namespace Fbx2Pr3
                 var objectName = meshPair.Key;
                 var mesh = meshPair.Value;
 
+                var vertices = new List<Vertex>();
+                var polyList = new List<int>();
+                var normals = new List<Vector3>();
+                var textures = new List<Vector3>();
+
                 // Vertices
-                var positionId = mesh
+                var xVertices = mesh
                     .Element($"{XmlNamespace}vertices")
                     .Element($"{XmlNamespace}input")
                     .Attribute("source").Value.TrimStart('#');
 
-                var polylist = ReadVecArray<Vector3>(mesh, positionId);
+                var polylist = ReadVecArray<Vector3>(mesh, xVertices);
                 foreach (var poly in polylist)
-                    _vertices.Add(new Vertex(_vertices.Count, poly));
+                    vertices.Add(new Vertex(vertices.Count, poly));
 
                 // Normals
-                var normals = mesh
+                var xNormals = mesh
                     .Element($"{XmlNamespace}triangles")
                     .Elements($"{XmlNamespace}input").FirstOrDefault(x => x.Attribute("semantic").Value == "NORMAL");
-                if (normals != null)
-                {
-                    var normalId = normals.Attribute("source").Value.TrimStart('#');
+                var normalId = xNormals.Attribute("source").Value.TrimStart('#');
 
-                    _normals = ReadVecArray<Vector3>(mesh, normalId);
-                }
+                normals.AddRange(ReadVecArray<Vector3>(mesh, normalId));
 
                 // Textures
-                var texCoords = mesh
+                var xTexCoords = mesh
                     .Element($"{XmlNamespace}triangles")
                     .Elements($"{XmlNamespace}input").FirstOrDefault(x => x.Attribute("semantic").Value == "TEXCOORD");
-                if (texCoords != null)
-                {
-                    var texCoordId = texCoords.Attribute("source").Value.TrimStart('#');
+                var texCoordId = xTexCoords.Attribute("source").Value.TrimStart('#');
 
-                    _textures = ReadVecArray<Vector2>(mesh, texCoordId).Select(v => new Vector3(v.X, v.Y, 0)).ToList();
-                }
+                textures.AddRange(ReadVecArray<Vector2>(mesh, texCoordId).Select(v => new Vector3(v.X, v.Y, 0)));
 
-                AssembleVertices(mesh);
-                RemoveUnusedVertices();
+                AssembleVertices(vertices, polyList, mesh);
+                RemoveUnusedVertices(vertices);
 
-                var geometry = ConvertBuffersToGeometry();
+                var geometry = ConvertBuffersToGeometry(polyList, vertices, normals, textures);
                 var nodeData = _sceneData.First(data => data.ObjectName == objectName);
 
                 geometry.Name = nodeData.ObjectName;
@@ -121,18 +113,12 @@ namespace Fbx2Pr3
                 geometry.MaterialName = nodeData.MaterialName;
 
                 objects.Add(geometry);
-
-                _vertices.Clear();
-                _polyList.Clear();
-
-                _normals = null;
-                _textures = null;
             }
 
             return objects;
         }
 
-        private List<T> ReadVecArray<T>(XElement mesh, string id)
+        private static List<T> ReadVecArray<T>(XElement mesh, string id)
         {
             var data = mesh
                 .Elements($"{XmlNamespace}source").FirstOrDefault(x => x.Attribute("id").Value == id)
@@ -159,7 +145,7 @@ namespace Fbx2Pr3
             return result;
         }
 
-        private void AssembleVertices(XElement mesh)
+        private static void AssembleVertices(List<Vertex> vertices, List<int> polyList,  XElement mesh)
         {
             var poly = mesh.Element($"{XmlNamespace}triangles");
             var typeCount = poly.Elements($"{XmlNamespace}input").Count();
@@ -167,52 +153,45 @@ namespace Fbx2Pr3
 
             for (var i = 0; i < id.Count / typeCount; i++)
             {
-                var textureIndex = -1;
-                var index = 0;
+                var posIndex = id[i * typeCount + 0];
+                var normalIndex = id[i * typeCount + 1];
+                var textureIndex = id[i * typeCount + 2];
 
-                var posIndex = id[i * typeCount + index]; index++;
-                var normalIndex = id[i * typeCount + index]; index++;
-
-                if (_textures != null)
-                {
-                    textureIndex = id[i * typeCount + index];
-                }
-
-                ProcessVertex(posIndex, normalIndex, textureIndex);
+                ProcessVertex(vertices, polyList, posIndex, normalIndex, textureIndex);
             }
         }
 
-        private void ProcessVertex(int posIndex, int normalIndex, int textureIndex)
+        private static void ProcessVertex(List<Vertex> vertices, List<int> polyList, int posIndex, int normalIndex, int textureIndex)
         {
-            var currentVertex = _vertices[posIndex];
+            var currentVertex = vertices[posIndex];
 
             if (!currentVertex.IsSet)
             {
                 currentVertex.NormalIndex = normalIndex;
                 currentVertex.TextureIndex = textureIndex;
-                _polyList.Add(posIndex);
+                polyList.Add(posIndex);
             }
             else
             {
-                HandleAlreadyProcessedVertex(currentVertex, normalIndex, textureIndex);
+                HandleAlreadyProcessedVertex(vertices, polyList, currentVertex, normalIndex, textureIndex);
             }
         }
 
-        private void HandleAlreadyProcessedVertex(Vertex previousVertex, int newNormalIndex, int newTextureIndex)
+        private static void HandleAlreadyProcessedVertex(List<Vertex> vertices, List<int> polyList, Vertex previousVertex, int newNormalIndex, int newTextureIndex)
         {
             if (previousVertex.HasSameInformation(newNormalIndex, newTextureIndex))
             {
-                _polyList.Add(previousVertex.Index);
+                polyList.Add(previousVertex.Index);
                 return;
             }
 
             if (previousVertex.DuplicateVertex != null)
             {
-                HandleAlreadyProcessedVertex(previousVertex.DuplicateVertex, newNormalIndex, newTextureIndex);
+                HandleAlreadyProcessedVertex(vertices, polyList, previousVertex.DuplicateVertex, newNormalIndex, newTextureIndex);
                 return;
             }
 
-            var duplicateVertex = new Vertex(_vertices.Count, previousVertex.Position)
+            var duplicateVertex = new Vertex(vertices.Count, previousVertex.Position)
             {
                 NormalIndex = newNormalIndex,
                 TextureIndex = newTextureIndex
@@ -220,13 +199,13 @@ namespace Fbx2Pr3
 
             previousVertex.DuplicateVertex = duplicateVertex;
 
-            _vertices.Add(duplicateVertex);
-            _polyList.Add(duplicateVertex.Index);
+            vertices.Add(duplicateVertex);
+            polyList.Add(duplicateVertex.Index);
         }
 
-        private void RemoveUnusedVertices()
+        private static void RemoveUnusedVertices(List<Vertex> vertices)
         {
-            foreach (var vertex in _vertices)
+            foreach (var vertex in vertices)
             {
                 if (vertex.IsSet) continue;
 
@@ -235,27 +214,22 @@ namespace Fbx2Pr3
             }
         }
 
-        private Geometry ConvertBuffersToGeometry()
+        private static Geometry ConvertBuffersToGeometry(List<int> polyList, List<Vertex> vertices, List<Vector3> normals, List<Vector3> textures)
         {
-            var verticesArray = new Vector3[_vertices.Count];
-            var normalsArray = new Vector3[_vertices.Count];
+            var verticesArray = new Vector3[vertices.Count];
+            var normalsArray = new Vector3[vertices.Count];
+            var texturesArray = new Vector3[vertices.Count];
 
-            Vector3[] texturesArray = null;
-
-            if (_textures != null)
-                texturesArray = new Vector3[_vertices.Count];
-
-            for (var i = 0; i < _vertices.Count; i++)
+            for (var i = 0; i < vertices.Count; i++)
             {
-                var currentVertex = _vertices[i];
+                var currentVertex = vertices[i];
 
                 verticesArray[i] = currentVertex.Position;
-                normalsArray[i] = _normals[currentVertex.NormalIndex];
-
-                if (texturesArray != null) texturesArray[i] = _textures[currentVertex.TextureIndex];
+                normalsArray[i] = normals[currentVertex.NormalIndex];
+                texturesArray[i] = textures[currentVertex.TextureIndex];
             }
 
-            return new Geometry(verticesArray, normalsArray, texturesArray, _polyList.ToArray());
+            return new Geometry(verticesArray, normalsArray, texturesArray, polyList.ToArray());
         }
     }
 }
