@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Fbx2Pr3
+﻿namespace Pr3Tools
 {
     public class Vertex 
     {	

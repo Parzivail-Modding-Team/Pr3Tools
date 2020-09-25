@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace Fbx2Pr3
+namespace Pr3Tools
 {
     internal class Pr3Object
     {

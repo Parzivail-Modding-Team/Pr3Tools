@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 
-namespace Fbx2Pr3
+namespace Pr3Tools
 {
     public class GeometryLoader
     {
@@ -17,7 +13,6 @@ namespace Fbx2Pr3
 
         public GeometryLoader(XElement file)
         {
-
             _meshes = AssembleMeshes(file);
             _sceneData = AssembleScene(file);
         }

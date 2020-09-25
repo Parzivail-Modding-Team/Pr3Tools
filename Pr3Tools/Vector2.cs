@@ -1,4 +1,4 @@
-﻿namespace Fbx2Pr3
+﻿namespace Pr3Tools
 {
     public struct Vector2
     {

@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Text;
 using System.Xml.Linq;
-using Brotli;
-using Newtonsoft.Json;
 
-namespace Fbx2Pr3
+namespace Pr3Tools
 {
     class Program
     {
@@ -34,29 +28,38 @@ namespace Fbx2Pr3
 
         private static void WriteOutputFile(string outputFile, Pr3Model model)
         {
-            var s = new StreamWriter(outputFile);
-            var bs = new BrotliStream(s.BaseStream, CompressionMode.Compress);
-            using (var f = new BinaryWriter(bs))
+	        using var f = new BinaryWriter(File.Open(outputFile, FileMode.Create));
+
+	        const string magic = "PR3";
+	        const int version = 1;
+
+	        var ident = magic.ToCharArray();
+
+	        f.Write(ident);
+	        f.Write(version);
+
+	        f.Write(model.Objects.Count);
+
+	        foreach (var pr3Object in model.Objects)
+	        {
+		        f.WriteNtString(pr3Object.Name);
+		        f.WriteNtString(pr3Object.MaterialName);
+		        WriteMatrix4(f, pr3Object.TransformationMatrix);
+		        WriteLengthCodedVectors(f, pr3Object.Vertices);
+		        WriteLengthCodedVectors(f, pr3Object.Normals);
+		        WriteLengthCodedVectors(f, pr3Object.Uvs);
+		        WriteLengthCodedFaces(f, pr3Object.Faces);
+	        }
+        }
+
+        private static void WriteLengthCodedFaces(BinaryWriter f, List<Pr3FacePointer> faces)
+        {
+            f.Write(faces.Count);
+            foreach (var face in faces)
             {
-                const string magic = "PR3";
-                const int version = 1;
-
-                var ident = magic.ToCharArray();
-
-                f.Write(ident);
-                f.Write(version);
-
-                f.Write(model.Objects.Count);
-
-                foreach (var pr3Object in model.Objects)
-                {
-                    f.WriteNtString(pr3Object.Name);
-                    f.WriteNtString(pr3Object.MaterialName);
-                    WriteMatrix4(f, pr3Object.TransformationMatrix);
-                    WriteLengthCodedVectors(f, pr3Object.Vertices);
-                    WriteLengthCodedVectors(f, pr3Object.Normals);
-                    WriteLengthCodedVectors(f, pr3Object.Uvs);
-                }
+                f.Write(face.A);
+                f.Write(face.B);
+                f.Write(face.C);
             }
         }
 

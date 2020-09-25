@@ -1,9 +1,7 @@
 ﻿using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Xml;
 
-namespace Fbx2Pr3
+namespace Pr3Tools
 {
     internal class Pr3Model
     {
